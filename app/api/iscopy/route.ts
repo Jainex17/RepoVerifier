@@ -4,77 +4,38 @@ const token = process.env.GITHUB_TOKEN;
 
 export async function POST(req: Request) {
   try {
-    const { username, repo } = await req.json();
+    const { commitMessage, username, repo } = await req.json();
 
     const headers = {
       Authorization: `token ${token}`,
       Accept: "application/vnd.github+json",
     };
 
-    if(!username || !repo) {
-      return NextResponse.error();
-    }
+    const results = [];
+    let totalfound: number = 0;
 
-    if(!token) {
-      return NextResponse.error();
-    }
+    const query = `"${commitMessage}" -repo:${username}/${repo}`;
 
-    let page = 1;
-    const commitMessages: string[] = [];
+    const searchUrl = `https://api.github.com/search/commits?q=${encodeURIComponent(
+      query
+    )}&page=1&per_page=5`;
+    const searchResponse = await fetch(searchUrl, { headers });
 
-    const url = `https://api.github.com/repos/${username}/${repo}/commits?page=${page}&per_page=100`;
-    const response = await fetch(url, { headers });
+    if (searchResponse.status === 200) {
+      const searchData = await searchResponse.json();
 
-    if (response.status === 200) {
-      const data = await response.json();
+      if (searchData.total_count > 0) {
+        const data = searchData.items[0];
 
-      for (let i = 0; i < data.length; i++) {
-        commitMessages.push(data[i].commit.message);
+        totalfound++;
+        results.push({
+          commit: commitMessage,
+          repoLink: `https://github.com/${data.repository.full_name}`,
+        });
       }
-
-      const results = [];
-      let totalfound: number = 0;
-
-      for (let i = 0; i < commitMessages.length; i++) {
-        const commitMessage = commitMessages[i];
-        const query = `"${commitMessage}" -repo:${username}/${repo}`;
-
-        const searchUrl = `https://api.github.com/search/commits?q=${encodeURIComponent(
-          query
-        )}&page=${page}&per_page=5`;
-        const searchResponse = await fetch(searchUrl, { headers });
-
-        if (searchResponse.status === 200) {
-          const searchData = await searchResponse.json();
-
-          if (searchData.total_count > 0) {
-            const data = searchData.items[0];
-            
-            totalfound++;
-            results.push({
-              commit: commitMessages[i],
-              repoLink: `https://github.com/${data.repository.full_name}`,
-            });
-          } 
-        //   else {
-        //     results.push({
-        //       commit: commitMessages[i],
-        //       repoLink: null,
-        //     });
-        //   }
-        } 
-        // else {
-        //   results.push({
-        //     commit: commitMessages[i],
-        //     repoLink: null,
-        //   });
-        // }
-      }
-      const score = Math.round(totalfound / commitMessages.length * 100) + "% similarity found";
-      return NextResponse.json({ score, results });
-    } else {
-      return NextResponse.error();
     }
+
+    return NextResponse.json({ totalfound, results });
   } catch (error) {
     return NextResponse.error();
   }
