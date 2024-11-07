@@ -49,8 +49,9 @@ export default function Home() {
       const commitMessages = data.commitMessages;
 
       const results: Result[] = [];
+      const max = commitMessages.length > 30 ? 30 : commitMessages.length;
       // doing for loop here because vercel only allow 5s request time for free tier
-      for (let i = 0; i < commitMessages.length; i++) {
+      for (let i = 0; i < max; i++) {
         const res = await fetch("/api/iscopy", {
           method: "POST",
           body: JSON.stringify({
