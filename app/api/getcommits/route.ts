@@ -5,7 +5,7 @@ const token = process.env.GITHUB_TOKEN;
 export async function POST(req: Request) {
   try {
     const { username, repo } = await req.json();
-
+    
     const headers = {
       Authorization: `token ${token}`,
       Accept: "application/vnd.github+json",

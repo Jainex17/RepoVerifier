@@ -16,7 +16,7 @@ export default function Home() {
   const [analysis, setAnalysis] = useState<Analysis>();
   const [repoLink, setRepoLink] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
-
+  
   async function handlesubmit(e: any) {
     e.preventDefault();
     if (!repoLink) return;
@@ -26,7 +26,7 @@ export default function Home() {
       return;
     }
 
-    if (repoLink.split("/")[2] != "github.com") {
+    if (!repoLink.includes("github.com")) {
       alert("Invalid repository link");
       return;
     }
@@ -38,40 +38,14 @@ export default function Home() {
 
     console.log(username, repo);
 
-    const res = await fetch("/api/getcommits", {
+    const res = await fetch("/api/getrepocontent", {
       method: "POST",
       body: JSON.stringify({ username, repo }),
     });
 
     if (res.status == 200) {
       const data = await res.json();
-
-      const commitMessages = data.commitMessages;
-
-      const results: Result[] = [];
-      const max = commitMessages.length > 30 ? 30 : commitMessages.length;
-      // doing for loop here because vercel only allow 5s request time for free tier
-      for (let i = 0; i < max; i++) {
-        const res = await fetch("/api/iscopy", {
-          method: "POST",
-          body: JSON.stringify({
-            commitMessage: commitMessages[i],
-            username,
-            repo,
-          }),
-        });
-
-        if (res.status == 200) {
-          const data = await res.json();
-          if (data.totalfound > 0) {
-            results.push(...data.results);
-          }
-        }
-      }
-      let score =
-        Math.floor((results.length / commitMessages.length) * 100) +
-        "% similar";
-      setAnalysis({ score, results });
+      console.log(data);
     }
 
     setLoading(false);
