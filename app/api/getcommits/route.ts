@@ -6,18 +6,19 @@ export async function POST(req: Request) {
   try {
     const { username, repo } = await req.json();
     
+    
+    if (!username || !repo) {
+      return NextResponse.error();
+    }
+    
+    if (!token) {
+      return NextResponse.error();
+    }
+    
     const headers = {
       Authorization: `token ${token}`,
       Accept: "application/vnd.github+json",
     };
-
-    if (!username || !repo) {
-      return NextResponse.error();
-    }
-
-    if (!token) {
-      return NextResponse.error();
-    }
 
     let page = 1;
     const commitMessages: string[] = [];

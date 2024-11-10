@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { commonFiles, commonFolders } from "./commonName.types";
+import { commonFiles, commonFolders, NotNeededExtensionFiles } from "./commonName.types";
 
 const token = process.env.GITHUB_TOKEN;
 const allFiles: string[] = [];
@@ -31,10 +31,16 @@ export async function POST(req: Request) {
       for (let i = 0; i < data.length; i++) {
 
         if (data[i].type === 'dir') {
-          if(commonFolders.includes(data[i].name)) continue;
+          if(data[i].name.charAt(0) === '.') continue;
+          if(commonFolders.includes(data[i].name)) continue;          
+
           await getFilesInDirectory(data[i].path, username, repo);
         }else{
+          const extencion = data[i].name.split('.').pop();
+
+          if(data[i].name.charAt(0) === '.') continue;
           if(commonFiles.includes(data[i].name)) continue;
+          if(NotNeededExtensionFiles.includes(extencion)) continue;
 
           allFiles.push(data[i].path);
         }
@@ -71,10 +77,16 @@ async function getFilesInDirectory(dirPath: string, owner: string, repo: string)
 
     for (const item of data) {
       if (item.type === 'file') {
-        if(commonFiles.includes(item.name)) continue;
         
+        const extencion = item.name.split('.').pop();
+
+        if(item.name.charAt(0) === '.') continue;
+        if(commonFiles.includes(item.name)) continue;
+        if(NotNeededExtensionFiles.includes(extencion)) continue;
+
         allFiles.push(item.path);
       } else if (item.type === 'dir') {
+        if(item.name.charAt(0) === '.') continue;
         if(commonFolders.includes(item.name)) continue;
 
         await getFilesInDirectory(item.path, owner, repo);

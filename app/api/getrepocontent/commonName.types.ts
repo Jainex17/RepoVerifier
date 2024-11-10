@@ -12,11 +12,10 @@ export const commonFiles = [
     "CODE_OF_CONDUCT.md",
     "SECURITY.md",
     "CHANGELOG.md",
-    
+
     // Node and package managers
     "package.json",
     "package-lock.json",
-    "yarn.lock",
     ".npmrc",
     ".yarnrc",
     ".npmignore",
@@ -108,6 +107,8 @@ export const commonFiles = [
     "Procfile",
     "Makefile",
     
+    "Cargo.toml",
+
     // Environment and local config files
     ".env",
     ".env.example",
@@ -176,4 +177,16 @@ export const commonFiles = [
     "static",
     "functions",
   ];
+
+  export const NotNeededExtensionFiles = [
+    "txt",
+    "env",
+    "md",
+    "json",
+    "png",
+    "jpg",
+    "jpeg",
+    "ico",
+    "lock",
+  ]
   
