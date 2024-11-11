@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { AlertCircle, CheckCircle2 } from "lucide-react"
 
 const octokit = new Octokit()
-const HACKATHON_START_DATE = new Date('2023-06-01T00:00:00Z')
+const HACKATHON_START_DATE = new Date('2020-06-01T00:00:00Z')
 
 interface VerificationResult {
   isOriginal: boolean

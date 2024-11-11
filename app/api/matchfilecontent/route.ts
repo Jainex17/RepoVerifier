@@ -5,7 +5,7 @@ const token = process.env.GITHUB_TOKEN;
 export async function POST(req: Request) {
   try {
     const { filepath, owner, repo } = await req.json();
-
+    
     if (!filepath || !owner || !repo) {
       return NextResponse.error();
     }
@@ -33,27 +33,32 @@ export async function POST(req: Request) {
 
       // remove special characters from the content
       const keywords = content.replace(/[^a-zA-Z0-9]/g, " ");
+      
+      const cleanedKeywords = keywords.replace(/\s+/g, " ").trim();
 
-      const searchTerms = keywords.length > 800 ? keywords.slice(0, 800) : keywords;
-       
-      const query = `${searchTerms} `;
-      console.log(query);
+      const searchTerms = cleanedKeywords.length > 800 ? cleanedKeywords.slice(0, 800) : cleanedKeywords;
+      
+      // const fileName = filepath.split("/").pop();
+      const query = `${searchTerms} -repo:${owner}/${repo}`;
+      console.log(encodeURIComponent(
+        query
+      ));
       
       const response = await fetch(
         `https://api.github.com/search/code?q=${encodeURIComponent(
           query
-        )} -repo:${owner}/${repo}&page=1&per_page=5`,
+        )}&page=1&per_page=5`,
         {
           headers,
         }
       );
-      ;
+      
       if (response.status === 200) {
         const data = await response.json();
+        console.log(data.items[0].repository.html_url);
+        
         if (data.total_count > 0) {
-          console.log(data.items[0]);
-          
-          const repoLink = data.items[0].html_url;
+          const repoLink = data.items[0].repository.html_url;
           return NextResponse.json({ match: true, repoLink: repoLink });
         
         } else {
