@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { FileIcon, FolderIcon, Loader2 } from "lucide-react";
 import { ignoredExtensions, ignoredFiles } from "./ignoredFiles";
 import { SimilarCodeFound } from "./SimilarCodeFound";
+import { useToast } from "@/hooks/use-toast";
 
 const octokit = new Octokit();
 
@@ -26,6 +27,7 @@ interface FileItem {
 }
 
 export interface searchResults {
+  orignalfilename: string;
   filename: string;
   repoUrl: string;
 }
@@ -44,6 +46,8 @@ export default function FileSelector({
   const [searchResultLoading, setSearchResultLoading] = useState(false);
   const [searchResults, setSearchResults] = useState<searchResults[]>([]);
 
+  const { toast } = useToast();
+  
   useEffect(() => {
     const fetchFiles = async () => {
       try {
@@ -163,7 +167,7 @@ export default function FileSelector({
     if (selectedFiles.length === 0 || selectedFiles.length > 5) {
       return;
     }
-
+    setSearchResults([]);
     searchForSimilarCode(selectedFiles);
   };
 
@@ -187,10 +191,15 @@ export default function FileSelector({
         const data = await response.json();
         if (data.match) {
           searchResults.push({
-            filename: file,
+            orignalfilename: file.split("/").pop() as string,
+            filename: data.fileName,
             repoUrl: data.repoLink,
           });
         }
+      }else {
+        toast({
+          description: "API Rate Limit Exceeded",
+        });
       }
     }
 

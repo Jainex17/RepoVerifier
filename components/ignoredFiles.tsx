@@ -129,5 +129,6 @@ export const ignoredExtensions = [
   "ico",
   "lock",
   'sql',
-  'xml'
+  'xml',
+  'svg',
 ];

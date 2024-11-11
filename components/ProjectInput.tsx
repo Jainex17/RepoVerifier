@@ -49,6 +49,10 @@ export default function ProjectInput() {
           setVerificationResult({ isOriginal: false, message: 'Repository not found' });
           setIsLoading(false);
         }
+        if(error.status === 403) {
+          setVerificationResult({ isOriginal: false, message: 'Rate limit exceeded' });
+          setIsLoading(false);
+        }
         return;
       });
 
@@ -72,7 +76,7 @@ export default function ProjectInput() {
       setVerificationResult({
         isOriginal,
         message: isOriginal
-          ? 'Project meet the requirements'
+          ? 'Project meet the basic requirements'
           : 'Project may Made before the hackathon or is a fork of another project',
       })
 

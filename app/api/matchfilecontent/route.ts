@@ -5,7 +5,7 @@ const token = process.env.GITHUB_TOKEN;
 export async function POST(req: Request) {
   try {
     const { filepath, owner, repo } = await req.json();
-    
+
     if (!filepath || !owner || !repo) {
       return NextResponse.error();
     }
@@ -28,21 +28,21 @@ export async function POST(req: Request) {
 
     if (res.status === 200) {
       const data = await res.json();
+      const fileName = filepath.split("/").pop();
 
       const content = Buffer.from(data.content, "base64").toString("utf-8");
 
-      // remove special characters from the content
-      const keywords = content.replace(/[^a-zA-Z0-9]/g, " ");
-      
+      let keywords = content.replace(/[^a-zA-Z0-9<>{};]/g, " ");
+
       const cleanedKeywords = keywords.replace(/\s+/g, " ").trim();
 
-      const searchTerms = cleanedKeywords.length > 800 ? cleanedKeywords.slice(0, 800) : cleanedKeywords;
-      
-      // const fileName = filepath.split("/").pop();
+      const searchTerms =
+        cleanedKeywords.length > 800
+          ? cleanedKeywords.slice(0, 800)
+          : cleanedKeywords;
+
       const query = `${searchTerms} -repo:${owner}/${repo}`;
-      console.log(encodeURIComponent(
-        query
-      ));
+      console.log(query);
       
       const response = await fetch(
         `https://api.github.com/search/code?q=${encodeURIComponent(
@@ -52,15 +52,23 @@ export async function POST(req: Request) {
           headers,
         }
       );
-      
+
       if (response.status === 200) {
         const data = await response.json();
-        console.log(data.items[0].repository.html_url);
-        
+
         if (data.total_count > 0) {
+          console.log(data.items[0].path.localeCompare(filepath));
+          
+          if(filepath.localeCompare(data.items[0].path) != 0){
+            return NextResponse.json({ match: false });
+          }
+
           const repoLink = data.items[0].repository.html_url;
-          return NextResponse.json({ match: true, repoLink: repoLink });
-        
+          return NextResponse.json({
+            match: true,
+            fileName: data.items[0].name,
+            repoLink: repoLink,
+          });
         } else {
           return NextResponse.json({ match: false });
         }

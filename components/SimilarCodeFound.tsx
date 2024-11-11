@@ -12,7 +12,7 @@ export const SimilarCodeFound = ({searchResults}: { searchResults: searchResults
 
         {searchResults && searchResults.length > 0 && searchResults.map((file, idx) => (
           <div key={idx} className="mb-4">
-            <h4 className="font-medium">{file.filename}</h4>
+            <h4 className="font-medium">{file.orignalfilename}</h4>
               <Alert className="mt-2">
                 <AlertTitle>{file.filename}</AlertTitle>
                 <AlertDescription>
