@@ -128,4 +128,5 @@ export const ignoredExtensions = [
   "jpeg",
   "ico",
   "lock",
+  'sql'
 ];

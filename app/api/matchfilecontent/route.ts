@@ -34,9 +34,9 @@ export async function POST(req: Request) {
       // remove special characters from the content
       const keywords = content.replace(/[^a-zA-Z0-9]/g, " ");
 
-      const searchTerms = keywords.slice(0, 500);
+      const searchTerms = keywords.length > 800 ? keywords.slice(0, 800) : keywords;
+       
       const query = `${searchTerms} `;
-
       console.log(query);
       
       const response = await fetch(
