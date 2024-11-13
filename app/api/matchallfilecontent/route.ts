@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     
     await traverseFilepaths(filepaths, owner, repo, headers, matches);
 
-    return matches.length > 0 ? NextResponse.json(matches) : NextResponse.json({ match: false });
+    return NextResponse.json(matches);
   } catch (error) {
     console.error("Error in POST handler:", error);
     return NextResponse.error();

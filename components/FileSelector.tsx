@@ -237,10 +237,10 @@ export default function FileSelector({
       const data = await res.json();
       setSearchResults(data);
     }catch(err){
+      setSearchResults([]);
       console.error("error while scanning all files");
     }finally{
       setSearchResultLoading(false);
-      setSearchResults([]);
     }
   };
 
