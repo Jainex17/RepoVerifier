@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { FileIcon, FolderIcon, Loader2 } from "lucide-react";
-import { ignoredExtensions, ignoredFiles } from "./ignoredFiles";
+import { ignoredExtensions, ignoredFiles } from "./ignoredFiles.ts";
 import { SimilarCodeFound } from "./SimilarCodeFound";
 import { useToast } from "@/hooks/use-toast";
 
@@ -44,10 +44,10 @@ export default function FileSelector({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchResultLoading, setSearchResultLoading] = useState(false);
-  const [searchResults, setSearchResults] = useState<searchResults[]>([]);
+  const [searchResults, setSearchResults] = useState<searchResults[]>();
 
   const { toast } = useToast();
-  
+
   useEffect(() => {
     const fetchFiles = async () => {
       try {
@@ -121,6 +121,10 @@ export default function FileSelector({
   };
 
   const handleFileSelection = (path: string) => {
+    if(searchResultLoading){
+      return;
+    }
+    
     setSelectedFiles((prev) => {
       if (prev.includes(path)) {
         return prev.filter((f) => f !== path);
@@ -165,6 +169,7 @@ export default function FileSelector({
 
   const handleSubmit = () => {
     if (selectedFiles.length === 0 || selectedFiles.length > 5) {
+      console.log("Invalid number of files selected");
       return;
     }
     setSearchResults([]);
@@ -196,7 +201,7 @@ export default function FileSelector({
             repoUrl: data.repoLink,
           });
         }
-      }else {
+      } else {
         toast({
           description: "API Rate Limit Exceeded",
         });
@@ -205,6 +210,38 @@ export default function FileSelector({
 
     setSearchResults(searchResults);
     setSearchResultLoading(false);
+  };
+
+  const handleScanAllFiles = async () => {
+
+    if(files.length === 0){
+      return;
+    }
+
+    setSearchResults([]);
+    setSearchResultLoading(true);
+
+    try{
+      const res = await fetch("/api/matchallfilecontent", {
+        method: "POST",
+        body: JSON.stringify({
+          filepaths: files,
+          owner,
+          repo,
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await res.json();
+      setSearchResults(data);
+    }catch(err){
+      console.error("error while scanning all files");
+    }finally{
+      setSearchResultLoading(false);
+      setSearchResults([]);
+    }
   };
 
   if (isLoading) {
@@ -242,11 +279,27 @@ export default function FileSelector({
           </CardContent>
           <Separator />
 
-          <CardFooter className="flex justify-between items-center py-4">
-            <Button variant="outline" onClick={() => window.history.back()}>
-              Cancel
+          <CardFooter className="flex justify-between items-center flex-col sm:flex-row py-4 gap-4">
+            <Button
+              variant="outline"
+              onClick={() => window.history.back()}
+              className="w-full"
+            >
+              Back
             </Button>
-            <Button onClick={handleSubmit} disabled={searchResultLoading}>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={handleScanAllFiles}
+              disabled={searchResultLoading}
+            >
+              Scan All Files (Slow)
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={searchResultLoading}
+              className="w-full"
+            >
               {searchResultLoading ? "Searching..." : "Submit Selected Files"}
             </Button>
           </CardFooter>
@@ -257,8 +310,14 @@ export default function FileSelector({
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
         )}
+        
+        {!searchResultLoading && searchResults && searchResults.length === 0 && (
+          <div className="flex justify-center items-center h-24">
+            <p className="text-gray-500">No similar code found</p>
+            </div>
+            )}
 
-        {searchResults.length > 0 && (
+        {searchResults && searchResults.length > 0 && (
           <SimilarCodeFound searchResults={searchResults} />
         )}
       </div>

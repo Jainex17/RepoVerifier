@@ -4,6 +4,7 @@ import { ExternalLink } from "lucide-react";
 import { searchResults } from "./FileSelector";
 
 export const SimilarCodeFound = ({searchResults}: { searchResults: searchResults[] }) => {
+  console.log(searchResults);
   
   return (
     <>

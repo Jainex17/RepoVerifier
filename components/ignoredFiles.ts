@@ -7,23 +7,15 @@ export const ignoredFiles = [
   "LICENSE",
 
   // Node and package managers
-  "package.json",
-  "package-lock.json",
   ".npmrc",
   ".yarnrc",
   ".npmignore",
   ".yarnignore",
 
   // TypeScript and JavaScript configs
-  "tsconfig.json",
-  "jsconfig.json",
   "babel.config.js",
-  "babel.config.json",
   ".babelrc",
   ".babelrc.js",
-  ".babelrc.json",
-
-  "favicon.ico",
 
   // Linting and formatting
   ".eslintrc",
@@ -40,7 +32,6 @@ export const ignoredFiles = [
   ".prettierignore",
   ".stylelintrc",
   ".stylelintrc.js",
-  ".stylelintrc.json",
   ".stylelintrc.yaml",
   ".stylelintrc.yml",
   ".stylelintignore",
@@ -49,7 +40,6 @@ export const ignoredFiles = [
   "next.config.js",
   "next.config.ts",
   "nuxt.config.js",
-  "next.config.mjs",
   "nuxt.config.ts",
   "vue.config.js",
   "vue.config.ts",
@@ -60,9 +50,6 @@ export const ignoredFiles = [
   "svelte.config.ts",
   "solid.config.js",
   "astro.config.js",
-  "astro.config.mjs",
-  "nx.json",
-  "turbo.json",
 
   // Build and task runners
   "webpack.config.js",
@@ -70,7 +57,6 @@ export const ignoredFiles = [
   "rollup.config.js",
   "vite.config.js",
   "vite.config.ts",
-  "vite.config.mjs",
   "snowpack.config.js",
   "snowpack.config.ts",
   "gulpfile.js",
@@ -114,7 +100,6 @@ export const ignoredFiles = [
   ".vscode",
 
   // Deno and other specialized config files
-  "deno.json",
   "deno.jsonc",
 ];
 
@@ -131,4 +116,5 @@ export const ignoredExtensions = [
   'sql',
   'xml',
   'svg',
+  'mjs'
 ];

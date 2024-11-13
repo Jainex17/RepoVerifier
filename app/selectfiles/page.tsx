@@ -1,8 +1,8 @@
-'use client'
+"use client";
 
 import FileSelector from "@/components/FileSelector";
 import React, { useEffect, Suspense } from "react";
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 function PageContent() {
@@ -14,11 +14,11 @@ function PageContent() {
   const [isLoading, setIsLoading] = React.useState(true);
 
   useEffect(() => {
-    const owner = searchParams.get('owner');
-    const repo = searchParams.get('repo');
+    const owner = searchParams.get("owner");
+    const repo = searchParams.get("repo");
 
     if (!owner || !repo) {
-      router.push('/');
+      router.push("/");
     }
 
     setOwner(owner as string);
@@ -31,7 +31,7 @@ function PageContent() {
       <div className="flex justify-center items-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
-    )
+    );
   }
 
   return (
@@ -43,11 +43,13 @@ function PageContent() {
 
 export default function Page() {
   return (
-    <Suspense fallback={
-      <div className="flex justify-center items-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="flex justify-center items-center h-screen">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      }
+    >
       <PageContent />
     </Suspense>
   );

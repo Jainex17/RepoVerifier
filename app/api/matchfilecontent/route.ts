@@ -25,24 +25,21 @@ export async function POST(req: Request) {
         headers,
       }
     );
+    
 
     if (res.status === 200) {
       const data = await res.json();
-      const fileName = filepath.split("/").pop();
 
       const content = Buffer.from(data.content, "base64").toString("utf-8");
 
       let keywords = content.replace(/[^a-zA-Z0-9<>{};]/g, " ");
-
       const cleanedKeywords = keywords.replace(/\s+/g, " ").trim();
-
       const searchTerms =
         cleanedKeywords.length > 800
           ? cleanedKeywords.slice(0, 800)
           : cleanedKeywords;
 
       const query = `${searchTerms} -repo:${owner}/${repo}`;
-      console.log(query);
       
       const response = await fetch(
         `https://api.github.com/search/code?q=${encodeURIComponent(
@@ -57,7 +54,6 @@ export async function POST(req: Request) {
         const data = await response.json();
 
         if (data.total_count > 0) {
-          console.log(data.items[0].path.localeCompare(filepath));
           
           if(filepath.localeCompare(data.items[0].path) != 0){
             return NextResponse.json({ match: false });
