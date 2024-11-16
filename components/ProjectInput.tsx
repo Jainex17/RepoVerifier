@@ -17,7 +17,6 @@ import { Label } from "@/components/ui/label";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 
 const octokit = new Octokit();
-const HACKATHON_START_DATE = new Date("2020-06-01T00:00:00Z");
 
 interface VerificationResult {
   isOriginal: boolean;
@@ -68,17 +67,14 @@ export default function ProjectInput() {
         return;
       }
 
-      const creationDate = new Date(repoData.created_at);
-      const isCreatedAfterHackathonStart = creationDate > HACKATHON_START_DATE;
       const isFork = repoData.fork;
-
-      const isOriginal = isCreatedAfterHackathonStart && !isFork;
+      const isOriginal = !isFork;
 
       setVerificationResult({
         isOriginal,
         message: isOriginal
           ? "Project meet the basic requirements"
-          : "Project may Made before the hackathon or is a fork of another project",
+          : "Project is a fork of another project",
       });
 
       if (isOriginal) {
@@ -106,7 +102,7 @@ export default function ProjectInput() {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
-        <CardTitle className="text-2xl">Duply Project Verifier</CardTitle>
+        <CardTitle className="text-2xl">RepoVerifier</CardTitle>
         <CardDescription>
           Verify the originality of your GitHub project
         </CardDescription>
