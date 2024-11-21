@@ -17,6 +17,7 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: "RepoVerifier",
   description: "Check originality of GitHub repositories",
+  keywords: ["GitHub", "repository", "originality", "verification"],
 };
 
 export default function RootLayout({
