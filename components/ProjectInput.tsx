@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Octokit } from "@octokit/rest";
 import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2 } from "lucide-react";
 
 const octokit = new Octokit();
 
@@ -136,12 +136,34 @@ export default function ProjectInput() {
             className="absolute hidden right-3 px-4 py-2 rounded-md 
                  sm:flex items-center gap-2 transition-all duration-300 hover:scale-105 font-medium"
           >
-            Verify Now
+            {isLoading ? "Verifying..." : "Verify Project"}
             <ArrowRight className="w-4 h-4" />
           </Button>
         </div>
-        <Button className="w-full mt-5 sm:hidden block" type="submit">sd</Button>
+        <Button className="w-full mt-5 sm:hidden block" type="submit">{isLoading ? "Verifying..." : "Verify Project"}</Button>
       </form>
+      {verificationResult && (
+        <div className="my-6">
+          <div className="w-full space-y-2">
+            <div
+              className={`flex items-center gap-2 ${
+                verificationResult.isOriginal
+                  ? "text-green-600"
+                  : "text-red-600"
+              }`}
+            >
+              {verificationResult.isOriginal ? (
+                <CheckCircle2 className="w-5 h-5" />
+              ) : (
+                <AlertCircle className="w-5 h-5" />
+              )}
+              <span className="font-semibold">
+                {verificationResult.message}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
       
     </>
   );
