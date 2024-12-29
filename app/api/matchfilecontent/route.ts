@@ -50,18 +50,23 @@ export async function POST(req: Request) {
         }
       );
 
-      if (response.status === 200) {
+      if (response.status === 200) {        
         const data = await response.json();
-
+                
         if (data.total_count > 0) {
+          const OrignalFileName = filepath.split("/").pop();
           
-          if(filepath.localeCompare(data.items[0].path) != 0){
+          if(OrignalFileName.localeCompare(data.items[0].name) != 0){
             return NextResponse.json({ match: false });
           }
-
+          
           const repoLink = data.items[0].repository.html_url;
+          const fileLink = data.items[0].html_url;
+          const safeUrl = fileLink.replace(/\[/g, '%5B').replace(/\]/g, '%5D');
+         
           return NextResponse.json({
             match: true,
+            fileUrl: safeUrl,
             fileName: data.items[0].name,
             repoLink: repoLink,
           });

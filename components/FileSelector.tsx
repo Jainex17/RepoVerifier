@@ -27,7 +27,8 @@ interface FileItem {
 }
 
 export interface searchResults {
-  orignalfilename: string;
+  filePath: string;
+  fileUrl: string;
   filename: string;
   repoUrl: string;
 }
@@ -196,7 +197,8 @@ export default function FileSelector({
         const data = await response.json();
         if (data.match) {
           searchResults.push({
-            orignalfilename: file.split("/").pop() as string,
+            filePath: file,
+            fileUrl: data.fileUrl,
             filename: data.fileName,
             repoUrl: data.repoLink,
           });
