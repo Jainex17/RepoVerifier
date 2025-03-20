@@ -1,45 +1,121 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Octokit } from "@octokit/rest";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, ArrowRight, CheckCircle2 } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, Loader2, GitFork } from "lucide-react";
+import { toast } from "sonner";
 
-const octokit = new Octokit();
+const getOctokit = () => {
+  const token = process.env.NEXT_PUBLIC_GITHUB_TOKEN;
+  return new Octokit(token ? { auth: token } : {});
+};
+
+const octokit = getOctokit();
 
 interface VerificationResult {
   isOriginal: boolean;
   message: string;
+  details?: string;
 }
 
 export default function ProjectInput() {
-  
   const [githubUrl, setGithubUrl] = useState("");
-  const [verificationResult, setVerificationResult] = useState<VerificationResult>();
+  const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [remainingRequests, setRemainingRequests] = useState<number | null>(null);
+  const [isValidInput, setIsValidInput] = useState<boolean | null>(null);
 
   const router = useRouter();
 
+  // Validate input when URL changes
+  useEffect(() => {
+    if (!githubUrl.trim()) {
+      setIsValidInput(null);
+      return;
+    }
+    
+    const isValid = extractRepoInfo(githubUrl) !== null;
+    setIsValidInput(isValid);
+  }, [githubUrl]);
+
+  // Check API rate limit on component mount
+  useEffect(() => {
+    const checkRateLimit = async () => {
+      try {
+        const { data } = await octokit.rateLimit.get();
+        setRemainingRequests(data.resources.core.remaining);
+        
+        if (data.resources.core.remaining < 5) {
+          toast.warning("GitHub API rate limit is low. Some features may be limited.");
+        }
+      } catch (error) {
+        console.error("Failed to check rate limit:", error);
+      }
+    };
+    
+    checkRateLimit();
+  }, []);
+
+  const clearInput = () => {
+    setGithubUrl("");
+    setVerificationResult(null);
+    setIsValidInput(null);
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    // Submit form on Enter if input is valid
+    if (e.key === 'Enter' && isValidInput) {
+      e.preventDefault();
+      const form = e.currentTarget.form;
+      if (form && !isLoading) {
+        form.requestSubmit();
+      }
+    }
+    
+    // Clear input on Escape
+    if (e.key === 'Escape') {
+      clearInput();
+    }
+  };
+
   const extractRepoInfo = (url: string) => {
-    const match = url.match(/github\.com\/([^/]+)\/([^/]+)/);
-    return match ? { owner: match[1], repo: match[2] } : null;
+    // Handle both full URL and shorthand formats
+    const fullUrlMatch = url.match(/github\.com\/([^/]+)\/([^/]+)/);
+    const shorthandMatch = url.match(/^([^/]+)\/([^/]+)$/);
+    
+    if (fullUrlMatch) {
+      return { owner: fullUrlMatch[1], repo: fullUrlMatch[2].replace(/\.git$/, '').split('/')[0] };
+    } else if (shorthandMatch) {
+      return { owner: shorthandMatch[1], repo: shorthandMatch[2].replace(/\.git$/, '').split('/')[0] };
+    }
+    
+    return null;
   };
 
   const verifyProject = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if(isLoading) return;
+    if (isLoading || !githubUrl.trim() || !isValidInput) return;
+
+    // Check if we're close to rate limit
+    if (remainingRequests !== null && remainingRequests < 3) {
+      toast.error("GitHub API rate limit reached. Please try again later.");
+      return;
+    }
 
     setIsLoading(true);
-    setVerificationResult(undefined);
+    setVerificationResult(null);
 
     const repoInfo = extractRepoInfo(githubUrl);
+    
     if (!repoInfo) {
       setVerificationResult({
         isOriginal: false,
-        message: "Invalid GitHub URL",
+        message: "Invalid GitHub URL format. Please use github.com/username/repo or username/repo",
       });
+      toast.error("Invalid GitHub URL format");
       setIsLoading(false);
       return;
     }
@@ -50,43 +126,57 @@ export default function ProjectInput() {
         repo: repoInfo.repo,
       });
 
-      const repoData = res.data;
-
-      if (res.status !== 200) {
-        setVerificationResult({
-          isOriginal: false,
-          message: "Error verifying project",
-        });
-        setIsLoading(false);
-        return;
+      // Update remaining requests
+      const rateLimit = parseInt(res.headers["x-ratelimit-remaining"] as string, 10);
+      if (!isNaN(rateLimit)) {
+        setRemainingRequests(rateLimit);
       }
 
+      const repoData = res.data;
       const isFork = repoData.fork;
       const isOriginal = !isFork;
+
+      let details = '';
+      if (!isOriginal && repoData.source) {
+        details = `Forked from ${repoData.source.full_name}`;
+      }
 
       setVerificationResult({
         isOriginal,
         message: isOriginal
-          ? "Project meet the basic requirements"
+          ? "Project meets the basic requirements"
           : "Project is a fork of another project",
+        details
       });
 
       if (isOriginal) {
-        router.push(
-          `/selectfiles?owner=${repoInfo.owner}&repo=${repoInfo.repo}`
-        );
+        toast.success("Verification successful! Redirecting...");
+        setTimeout(() => {
+          router.push(
+            `/selectfiles?owner=${repoInfo.owner}&repo=${repoInfo.repo}`
+          );
+        }, 1000); // Give the user a moment to see the success message
+      } else {
+        toast.error("Project is a fork of another repository");
       }
     } catch (error: any) {
-      if (error.status === 403) {
+      console.error("GitHub API error:", error);
+      
+      if (error.status === 404) {
+        toast.error("Repository not found");
+      } else if (error.status === 403) {
         setVerificationResult({
           isOriginal: false,
-          message: "Rate limit exceeded",
+          message: "Rate limit exceeded. Please try again later.",
         });
+        toast.error("GitHub API rate limit exceeded");
+        setRemainingRequests(0);
       } else {
         setVerificationResult({
           isOriginal: false,
-          message: "Error verifying project",
+          message: `Error verifying project: ${error.message || "Unknown error"}`,
         });
+        toast.error("Error verifying project");
       }
     } finally {
       setIsLoading(false);
@@ -94,20 +184,20 @@ export default function ProjectInput() {
   };
 
   return (
-    <>
-      <div className="mb-6">
+    <div className="flex flex-col items-center justify-center w-full h-full">
+      <div className="text-center w-full">
         <h1 className="text-4xl sm:text-7xl font-bold mb-3 cyber-glitch font-mono flex justify-center">
           Repo
           <span className="text-blue-500 text-opacity-55 flex flex-col">
             Verifier
           </span>
         </h1>
-        <p className="text-sm sm:text-base text-center mb-6 font-mono">
+        <p className="text-sm sm:text-base mb-6 font-mono">
           Verify the originality of your GitHub project
         </p>
       </div>
 
-      <form onSubmit={verifyProject} className="w-4/5 max-w-2xl mx-auto">
+      <form onSubmit={verifyProject} className="w-full max-w-2xl mx-auto">
         <div className="relative flex items-center group">
           <div className="absolute left-4 text-slate-400 group-hover:text-blue-400 transition-colors">
             <svg
@@ -124,47 +214,110 @@ export default function ProjectInput() {
             type="text"
             value={githubUrl}
             onChange={(e) => setGithubUrl(e.target.value)}
-            placeholder="github.com/username/repository"
-            className="w-full px-12 py-4 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-400 
-                 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent 
-                 hover:bg-white/10 transition-all duration-300"
+            onKeyDown={handleKeyDown}
+            placeholder="github.com/username/repository or username/repository"
+            className={`w-full px-12 py-4 bg-white/5 border ${
+              isValidInput === null
+                ? 'border-white/10'
+                : isValidInput
+                ? 'border-green-500/30 focus:ring-green-500'
+                : 'border-red-500/30 focus:ring-red-500'
+            } rounded-lg text-white placeholder-slate-400 
+                 focus:outline-none focus:ring-2 focus:border-transparent 
+                 hover:bg-white/10 transition-all duration-300`}
+            disabled={isLoading}
+            aria-invalid={isValidInput === false}
+            aria-describedby={isValidInput === false ? "url-error" : undefined}
           />
           <Button
             type="submit"
-            disabled={isLoading}
-            onClick={()=> verifyProject}
+            disabled={isLoading || !githubUrl.trim() || isValidInput === false}
             className="absolute hidden right-3 px-4 py-2 rounded-md 
                  sm:flex items-center gap-2 transition-all duration-300 hover:scale-105 font-medium"
+            aria-label="Verify GitHub project"
           >
-            {isLoading ? "Verifying..." : "Verify Project"}
-            <ArrowRight className="w-4 h-4" />
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Verifying...
+              </>
+            ) : (
+              <>
+                Verify Project
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
           </Button>
         </div>
-        <Button className="w-full mt-5 sm:hidden block" type="submit">{isLoading ? "Verifying..." : "Verify Project"}</Button>
+        <Button 
+          className="w-full mt-5 sm:hidden block" 
+          type="submit"
+          disabled={isLoading || !githubUrl.trim() || isValidInput === false}
+          aria-label="Verify GitHub project"
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              Verifying...
+            </>
+          ) : (
+            "Verify Project"
+          )}
+        </Button>
+
+        {/* GitHub API rate limit indicator */}
+        {remainingRequests !== null && remainingRequests < 20 && (
+          <div className="mt-2 text-xs text-center text-amber-400">
+            <span>GitHub API rate limit: {remainingRequests} requests remaining</span>
+          </div>
+        )}
       </form>
-      {verificationResult && (
-        <div className="my-6">
-          <div className="w-full space-y-2">
-            <div
-              className={`flex items-center gap-2 ${
-                verificationResult.isOriginal
-                  ? "text-green-600"
-                  : "text-red-600"
-              }`}
-            >
-              {verificationResult.isOriginal ? (
-                <CheckCircle2 className="w-5 h-5" />
-              ) : (
-                <AlertCircle className="w-5 h-5" />
-              )}
-              <span className="font-semibold">
-                {verificationResult.message}
-              </span>
+      
+      {isLoading && (
+        <div className="my-6 w-full max-w-2xl mx-auto flex items-center justify-center animate-pulse">
+          <div className="p-4 rounded-lg border border-blue-500/20 bg-blue-500/10">
+            <div className="flex items-center gap-2 text-blue-400">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span>Verifying repository...</span>
             </div>
           </div>
         </div>
       )}
       
-    </>
+      {!isLoading && verificationResult && (
+        <div className="my-6 w-full max-w-2xl mx-auto animate-fadeIn">
+          <div className={`p-4 rounded-lg border ${
+              verificationResult.isOriginal
+                ? "bg-green-500/10 border-green-500/20"
+                : "bg-red-500/10 border-red-500/20"
+            }`}
+          >
+            <div
+              className={`flex items-center gap-2 ${
+                verificationResult.isOriginal
+                  ? "text-green-500"
+                  : "text-red-500"
+              }`}
+            >
+              {verificationResult.isOriginal ? (
+                <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+              ) : (
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              )}
+              <span className="font-medium">
+                {verificationResult.message}
+              </span>
+            </div>
+            
+            {verificationResult.details && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-slate-400">
+                <GitFork className="w-4 h-4 flex-shrink-0" />
+                <span>{verificationResult.details}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
