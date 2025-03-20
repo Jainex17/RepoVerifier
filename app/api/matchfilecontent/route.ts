@@ -7,11 +7,15 @@ export async function POST(req: Request) {
     const { filepath, owner, repo } = await req.json();
 
     if (!filepath || !owner || !repo) {
-      return NextResponse.error();
+      return NextResponse.json(
+        {status: 400, message: "missing filepath, owner, or repo"}
+      )
     }
 
     if (!token) {
-      return NextResponse.error();
+      return NextResponse.json(
+        {status: 500, message: "missing github token"}
+      )
     }
 
     const headers = {
@@ -57,7 +61,10 @@ export async function POST(req: Request) {
           const OrignalFileName = filepath.split("/").pop();
           
           if(OrignalFileName.localeCompare(data.items[0].name) != 0){
-            return NextResponse.json({ match: false });
+            return NextResponse.json({
+              status: 200,
+              match: false,
+            });
           }
           
           const repoLink = data.items[0].repository.html_url;
@@ -65,23 +72,31 @@ export async function POST(req: Request) {
           const safeUrl = fileLink.replace(/\[/g, '%5B').replace(/\]/g, '%5D');
          
           return NextResponse.json({
+            status: 200,
             match: true,
             fileUrl: safeUrl,
             fileName: data.items[0].name,
             repoLink: repoLink,
           });
         } else {
-          return NextResponse.json({ match: false });
+          return NextResponse.json({
+            status: 200,
+            match: false,
+          }); 
         }
       } else {
         console.log("error while searching for file content");
-        return NextResponse.error();
+        return NextResponse.json({status: 500, message: "error while searching for file content"});
       }
     } else {
       console.log("error while fetching file content");
-      return NextResponse.error();
+      return NextResponse.json(
+        {status: 500, message: "error while fetching file content"}
+      )
     }
   } catch (error) {
-    return NextResponse.error();
+    return NextResponse.json(
+      {status: 500, message: "catch error while fetching file content"}
+    )
   }
 }

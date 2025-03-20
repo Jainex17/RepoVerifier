@@ -235,7 +235,8 @@ export default function FileSelector({
           "Content-Type": "application/json",
         },
       });
-
+      console.log(res);
+      
       const data = await res.json();
       setSearchResults(data);
     }catch(err){
