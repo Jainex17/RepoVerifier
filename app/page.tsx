@@ -4,7 +4,7 @@ import { Toaster } from "sonner";
 export default function Home() {
   return (
     <>
-      <Toaster position="top-center" richColors />
+      <Toaster position="top-right" theme="dark" />
       <main className="h-screen w-screen flex flex-col justify-center items-center relative overflow-hidden">
         {/* Background effects */}
         <div className="absolute inset-0 overflow-hidden -z-10">

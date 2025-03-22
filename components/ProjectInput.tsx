@@ -141,42 +141,54 @@ export default function ProjectInput() {
         details = `Forked from ${repoData.source.full_name}`;
       }
 
-      setVerificationResult({
+      const result = {
         isOriginal,
         message: isOriginal
           ? "Project meets the basic requirements"
           : "Project is a fork of another project",
         details
-      });
+      };
+      
+      setVerificationResult(result);
 
       if (isOriginal) {
-        toast.success("Verification successful! Redirecting...");
+        toast.success("Verification successful! Redirecting...", {
+          description: "Project meets the basic requirements"
+        });
         setTimeout(() => {
           router.push(
             `/selectfiles?owner=${repoInfo.owner}&repo=${repoInfo.repo}`
           );
         }, 1000); // Give the user a moment to see the success message
       } else {
-        toast.error("Project is a fork of another repository");
+        toast.error("Project is a fork of another repository", {
+          description: details || "This repository doesn't meet the originality requirements"
+        });
       }
     } catch (error: any) {
       console.error("GitHub API error:", error);
       
       if (error.status === 404) {
-        toast.error("Repository not found");
+        toast.error("Repository not found", {
+          description: "Please check the repository URL and try again"
+        });
       } else if (error.status === 403) {
         setVerificationResult({
           isOriginal: false,
           message: "Rate limit exceeded. Please try again later.",
         });
-        toast.error("GitHub API rate limit exceeded");
+        toast.error("GitHub API rate limit exceeded", {
+          description: "Please try again later"
+        });
         setRemainingRequests(0);
       } else {
         setVerificationResult({
           isOriginal: false,
           message: `Error verifying project: ${error.message || "Unknown error"}`,
         });
-        toast.error("Error verifying project");
+        toast.error("Error verifying project", {
+          description: error.message || "Unknown error occurred"
+        });
       }
     } finally {
       setIsLoading(false);
@@ -280,41 +292,6 @@ export default function ProjectInput() {
               <Loader2 className="w-5 h-5 animate-spin" />
               <span>Verifying repository...</span>
             </div>
-          </div>
-        </div>
-      )}
-      
-      {!isLoading && verificationResult && (
-        <div className="my-6 w-full max-w-2xl mx-auto animate-fadeIn">
-          <div className={`p-4 rounded-lg border ${
-              verificationResult.isOriginal
-                ? "bg-green-500/10 border-green-500/20"
-                : "bg-red-500/10 border-red-500/20"
-            }`}
-          >
-            <div
-              className={`flex items-center gap-2 ${
-                verificationResult.isOriginal
-                  ? "text-green-500"
-                  : "text-red-500"
-              }`}
-            >
-              {verificationResult.isOriginal ? (
-                <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-              ) : (
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-              )}
-              <span className="font-medium">
-                {verificationResult.message}
-              </span>
-            </div>
-            
-            {verificationResult.details && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-slate-400">
-                <GitFork className="w-4 h-4 flex-shrink-0" />
-                <span>{verificationResult.details}</span>
-              </div>
-            )}
           </div>
         </div>
       )}
