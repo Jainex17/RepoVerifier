@@ -106,7 +106,7 @@ export default function FileSelector({
         const fileExtension = item.name.split(".").pop();
         if (
           ignoredFiles.includes(item.name) ||
-          ignoredExtensions.includes(fileExtension)
+          (fileExtension && ignoredExtensions.includes(fileExtension))
         ) {
           continue;
         }
@@ -300,26 +300,65 @@ export default function FileSelector({
     setSearchResultLoading(true);
 
     try {
-      const res = await fetch("/api/matchallfilecontent", {
-        method: "POST",
-        body: JSON.stringify({
-          filepaths: files,
-          owner,
-          repo,
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const allSearchResults: searchResults[] = [];
+      const allFiles = getAllFiles(files);
+      
+      for (const file of allFiles) {
+        try {
+          const response = await fetch("/api/matchfilecontent", {
+            method: "POST",
+            body: JSON.stringify({
+              filepath: file.path,
+              owner,
+              repo,
+            }),
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
 
-      const data = await res.json();
-      setSearchResults(data);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.match) {
+              allSearchResults.push({
+                filePath: file.path,
+                fileUrl: data.fileUrl,
+                filename: data.fileName,
+                repoUrl: data.repoLink,
+              });
+            }
+          } else {
+            toast({
+              description: "API Rate Limit Exceeded",
+              variant: "destructive",
+            });
+            break; 
+          }
+        } catch (err) {
+          console.error(`Error scanning file ${file.path}:`, err);
+        }
+      }
+      
+      setSearchResults(allSearchResults);
     } catch (err) {
-      setSearchResults([]);
-      console.error("error while scanning all files");
+      console.error("Error while scanning all files:", err);
     } finally {
       setSearchResultLoading(false);
     }
+  };
+
+  const getAllFiles = (items: FileItem[]): FileItem[] => {
+    let files: FileItem[] = [];
+    
+    for (const item of items) {
+      if (item.type === "file") {
+        files.push(item);
+      } else if (item.type === "dir" && item.children) {
+        files = files.concat(getAllFiles(item.children));
+      }
+    }
+    
+    return files;
   };
 
   if (isLoading) {
@@ -359,6 +398,12 @@ export default function FileSelector({
               Select up to 5 files to check for code duplication across
               repositories
             </CardDescription>
+            <div className="mt-2 text-xs text-zinc-500 flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />
+              <span>
+                Common files (LICENSE, README) and non-code files (.txt, .png, .svg, etc.) are automatically excluded.
+              </span>
+            </div>
           </div>
           <div className="flex items-center space-x-2">
             <Progress
