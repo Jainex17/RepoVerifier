@@ -60,6 +60,7 @@ export default function FileSelector({
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
     new Set()
   );
+  const similarCodeRef = React.useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -151,10 +152,8 @@ export default function FileSelector({
     setSelectedFiles((prev) => {
       if (prev.includes(path)) {
         return prev.filter((f) => f !== path);
-      } else if (prev.length < 5) {
+      }  else {
         return [...prev, path];
-      } else {
-        return prev;
       }
     });
   };
@@ -246,7 +245,7 @@ export default function FileSelector({
   };
 
   const handleSubmit = () => {
-    if (selectedFiles.length === 0 || selectedFiles.length > 5) {
+    if (selectedFiles.length === 0) {
       console.log("Invalid number of files selected");
       return;
     }
@@ -255,6 +254,7 @@ export default function FileSelector({
   };
 
   const searchForSimilarCode = async (selectedFiles: string[]) => {
+    try {
     setSearchResultLoading(true);
     const searchResults: searchResults[] = [];
     for (const file of selectedFiles) {
@@ -288,9 +288,22 @@ export default function FileSelector({
     }
 
     setSearchResults(searchResults);
-    setSearchResultLoading(false);
-  };
+    if (searchResults.length > 0) {
+      similarCodeRef.current?.scrollIntoView({
+      behavior: "smooth",
+      });
+    }
 
+  } catch (err) {
+    console.error("Error while searching for similar code:", err);
+    toast({
+      description: "Error while searching for similar code",
+      variant: "destructive",
+    });
+  } finally {
+    setSearchResultLoading(false);
+    }
+  }
   const handleScanAllFiles = async () => {
     if (files.length === 0) {
       return;
@@ -387,16 +400,15 @@ export default function FileSelector({
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl bg-zinc-950 min-h-screen">
+    <div className="container mx-auto px-4 py-8 max-w-4xl min-h-screen">
       <Card className="shadow-lg border-zinc-800 bg-zinc-900">
         <CardHeader className="space-y-4">
           <div className="flex flex-col space-y-2">
             <CardTitle className="text-2xl font-bold text-zinc-50">
-              Repository Scanner
+            RepoVerifier
             </CardTitle>
             <CardDescription className="text-zinc-400">
-              Select up to 5 files to check for code duplication across
-              repositories
+              Select unique files to scan for similar code in other repositories.
             </CardDescription>
             <div className="mt-2 text-xs text-zinc-500 flex items-center gap-1">
               <AlertCircle className="h-3 w-3" />
@@ -405,15 +417,7 @@ export default function FileSelector({
               </span>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
-            <Progress
-              value={(selectedFiles.length / 5) * 100}
-              className="h-2 bg-zinc-800"
-            />
-            <span className="text-sm text-zinc-400">
-              {selectedFiles.length}/5 files selected
-            </span>
-          </div>
+          
         </CardHeader>
 
         <CardContent>
@@ -466,9 +470,7 @@ export default function FileSelector({
                   Searching...
                 </>
               ) : (
-                `Scan ${selectedFiles.length} Selected File${
-                  selectedFiles.length !== 1 ? "s" : ""
-                }`
+                `Scan ${selectedFiles.length} Selected Files`
               )}
             </Button>
           </div>
@@ -497,7 +499,9 @@ export default function FileSelector({
           )}
 
         {searchResults && searchResults.length > 0 && (
-          <SimilarCodeFound searchResults={searchResults} />
+          <div ref={similarCodeRef}>
+            <SimilarCodeFound searchResults={searchResults} />
+          </div>
         )}
       </div>
     </div>

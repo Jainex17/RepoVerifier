@@ -4,93 +4,95 @@ import { useState, useEffect, KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Octokit } from "@octokit/rest";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, ArrowRight, CheckCircle2, Loader2, GitFork } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  Loader2,
+  GitFork,
+} from "lucide-react";
 import { toast } from "sonner";
 
 const getOctokit = () => {
-  const token = process.env.NEXT_PUBLIC_GITHUB_TOKEN;
-  return new Octokit(token ? { auth: token } : {});
+  return new Octokit();
 };
 
 const octokit = getOctokit();
 
-interface VerificationResult {
-  isOriginal: boolean;
-  message: string;
-  details?: string;
-}
-
 export default function ProjectInput() {
   const [githubUrl, setGithubUrl] = useState("");
-  const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [remainingRequests, setRemainingRequests] = useState<number | null>(null);
+  const [remainingRequests, setRemainingRequests] = useState<number | null>(
+    null
+  );
   const [isValidInput, setIsValidInput] = useState<boolean | null>(null);
 
   const router = useRouter();
 
-  // Validate input when URL changes
   useEffect(() => {
     if (!githubUrl.trim()) {
       setIsValidInput(null);
       return;
     }
-    
+
     const isValid = extractRepoInfo(githubUrl) !== null;
     setIsValidInput(isValid);
   }, [githubUrl]);
 
-  // Check API rate limit on component mount
   useEffect(() => {
     const checkRateLimit = async () => {
       try {
         const { data } = await octokit.rateLimit.get();
         setRemainingRequests(data.resources.core.remaining);
-        
+
         if (data.resources.core.remaining < 5) {
-          toast.warning("GitHub API rate limit is low. Some features may be limited.");
+          toast.warning(
+            "GitHub API rate limit is low. Some features may be limited."
+          );
         }
       } catch (error) {
         console.error("Failed to check rate limit:", error);
       }
     };
-    
+
     checkRateLimit();
   }, []);
 
   const clearInput = () => {
     setGithubUrl("");
-    setVerificationResult(null);
     setIsValidInput(null);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    // Submit form on Enter if input is valid
-    if (e.key === 'Enter' && isValidInput) {
+    if (e.key === "Enter" && isValidInput) {
       e.preventDefault();
       const form = e.currentTarget.form;
       if (form && !isLoading) {
         form.requestSubmit();
       }
     }
-    
-    // Clear input on Escape
-    if (e.key === 'Escape') {
+
+    if (e.key === "Escape") {
       clearInput();
     }
   };
 
   const extractRepoInfo = (url: string) => {
-    // Handle both full URL and shorthand formats
     const fullUrlMatch = url.match(/github\.com\/([^/]+)\/([^/]+)/);
     const shorthandMatch = url.match(/^([^/]+)\/([^/]+)$/);
-    
+
     if (fullUrlMatch) {
-      return { owner: fullUrlMatch[1], repo: fullUrlMatch[2].replace(/\.git$/, '').split('/')[0] };
+      return {
+        owner: fullUrlMatch[1],
+        repo: fullUrlMatch[2].replace(/\.git$/, "").split("/")[0],
+      };
     } else if (shorthandMatch) {
-      return { owner: shorthandMatch[1], repo: shorthandMatch[2].replace(/\.git$/, '').split('/')[0] };
+      return {
+        owner: shorthandMatch[1],
+        repo: shorthandMatch[2].replace(/\.git$/, "").split("/")[0],
+      };
     }
-    
+
     return null;
   };
 
@@ -99,97 +101,89 @@ export default function ProjectInput() {
 
     if (isLoading || !githubUrl.trim() || !isValidInput) return;
 
-    // Check if we're close to rate limit
     if (remainingRequests !== null && remainingRequests < 3) {
       toast.error("GitHub API rate limit reached. Please try again later.");
       return;
     }
 
     setIsLoading(true);
-    setVerificationResult(null);
 
     const repoInfo = extractRepoInfo(githubUrl);
-    
+
     if (!repoInfo) {
-      setVerificationResult({
-        isOriginal: false,
-        message: "Invalid GitHub URL format. Please use github.com/username/repo or username/repo",
-      });
       toast.error("Invalid GitHub URL format");
       setIsLoading(false);
       return;
     }
 
     try {
-      const res = await octokit.repos.get({
-        owner: repoInfo.owner,
-        repo: repoInfo.repo,
-      });
-
-      // Update remaining requests
-      const rateLimit = parseInt(res.headers["x-ratelimit-remaining"] as string, 10);
-      if (!isNaN(rateLimit)) {
-        setRemainingRequests(rateLimit);
-      }
-
-      const repoData = res.data;
-      const isFork = repoData.fork;
-      const isOriginal = !isFork;
-
-      let details = '';
-      if (!isOriginal && repoData.source) {
-        details = `Forked from ${repoData.source.full_name}`;
-      }
-
-      const result = {
-        isOriginal,
-        message: isOriginal
-          ? "Project meets the basic requirements"
-          : "Project is a fork of another project",
-        details
-      };
-      
-      setVerificationResult(result);
-
-      if (isOriginal) {
-        toast.success("Verification successful! Redirecting...", {
-          description: "Project meets the basic requirements"
-        });
-        setTimeout(() => {
-          router.push(
-            `/selectfiles?owner=${repoInfo.owner}&repo=${repoInfo.repo}`
+      octokit
+        .request("GET /repos/{owner}/{repo}", {
+          owner: repoInfo.owner,
+          repo: repoInfo.repo,
+        })
+        .then((res) => {
+          const rateLimit = parseInt(
+            res.headers["x-ratelimit-remaining"] as string,
+            10
           );
-        }, 1000); // Give the user a moment to see the success message
-      } else {
-        toast.error("Project is a fork of another repository", {
-          description: details || "This repository doesn't meet the originality requirements"
+          if (!isNaN(rateLimit)) {
+            setRemainingRequests(rateLimit);
+          }
+
+          const repoData = res.data;
+          const isFork = repoData.fork;
+          const isOriginal = !isFork;
+
+          let details = "";
+          if (!isOriginal && repoData.source) {
+            details = `Forked from ${repoData.source.full_name}`;
+          }
+
+          if (isOriginal) {
+            toast.success("Verification successful! Redirecting...", {
+              description: "Project meets the basic requirements",
+            });
+            setTimeout(() => {
+              router.push(
+                `/selectfiles?owner=${repoInfo.owner}&repo=${repoInfo.repo}`
+              );
+            }, 200);
+          } else {
+            toast.error("Project is a fork of another repository", {
+              description:
+                details ||
+                "This repository doesn't meet the originality requirements",
+            });
+          }
+        })
+        .catch((error) => {
+          if (error.status === 404) {
+            throw new Error("Repository not found");
+          } else if (error.status === 403) {
+            throw new Error("GitHub API rate limit exceeded");
+          } else {
+            throw error;
+          }
         });
-      }
     } catch (error: any) {
-      console.error("GitHub API error:", error);
-      
-      if (error.status === 404) {
+      console.error("Caught error:", error);
+
+      if (error.response && error.response.status === 404) {
         toast.error("Repository not found", {
-          description: "Please check the repository URL and try again"
+          description: "Please check the repository URL and try again",
         });
-      } else if (error.status === 403) {
-        setVerificationResult({
-          isOriginal: false,
-          message: "Rate limit exceeded. Please try again later.",
-        });
+      } else if (error.response && error.response.status === 403) {
         toast.error("GitHub API rate limit exceeded", {
-          description: "Please try again later"
+          description: "Please try again later",
         });
         setRemainingRequests(0);
       } else {
-        setVerificationResult({
-          isOriginal: false,
-          message: `Error verifying project: ${error.message || "Unknown error"}`,
-        });
         toast.error("Error verifying project", {
-          description: error.message || "Unknown error occurred"
+          description: error.message || "Unknown error occurred",
         });
       }
+      return;
     } finally {
       setIsLoading(false);
     }
@@ -230,10 +224,10 @@ export default function ProjectInput() {
             placeholder="github.com/username/repository or username/repository"
             className={`w-full px-12 py-4 bg-white/5 border ${
               isValidInput === null
-                ? 'border-white/10'
+                ? "border-white/10"
                 : isValidInput
-                ? 'border-green-500/30 focus:ring-green-500'
-                : 'border-red-500/30 focus:ring-red-500'
+                ? "border-green-500/30 focus:ring-green-500"
+                : "border-red-500/30 focus:ring-red-500"
             } rounded-lg text-white placeholder-slate-400 
                  focus:outline-none focus:ring-2 focus:border-transparent 
                  hover:bg-white/10 transition-all duration-300`}
@@ -261,8 +255,8 @@ export default function ProjectInput() {
             )}
           </Button>
         </div>
-        <Button 
-          className="w-full mt-5 sm:hidden block" 
+        <Button
+          className="w-full mt-5 sm:hidden block"
           type="submit"
           disabled={isLoading || !githubUrl.trim() || isValidInput === false}
           aria-label="Verify GitHub project"
@@ -280,11 +274,13 @@ export default function ProjectInput() {
         {/* GitHub API rate limit indicator */}
         {remainingRequests !== null && remainingRequests < 20 && (
           <div className="mt-2 text-xs text-center text-amber-400">
-            <span>GitHub API rate limit: {remainingRequests} requests remaining</span>
+            <span>
+              GitHub API rate limit: {remainingRequests} requests remaining
+            </span>
           </div>
         )}
       </form>
-      
+
       {isLoading && (
         <div className="my-6 w-full max-w-2xl mx-auto flex items-center justify-center animate-pulse">
           <div className="p-4 rounded-lg border border-blue-500/20 bg-blue-500/10">
