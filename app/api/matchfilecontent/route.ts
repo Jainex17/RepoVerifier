@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
-const token = process.env.GITHUB_TOKEN;
-
+const token = process.env.GITHUB_TOKEN1;
 
 export async function POST(req: Request) {
   try {
@@ -9,14 +8,16 @@ export async function POST(req: Request) {
 
     if (!filepath || !owner || !repo) {
       return NextResponse.json(
-        {status: 400, message: "missing filepath, owner, or repo"}
-      )
+        { error: "Missing filepath, owner, or repo" },
+        { status: 400 }
+      );
     }
 
     if (!token) {
       return NextResponse.json(
-        {status: 500, message: "missing github token"}
-      )
+        { error: "Missing GitHub token" },
+        { status: 500 }
+      );
     }
 
     const headers = {
@@ -31,10 +32,8 @@ export async function POST(req: Request) {
       }
     );
     
-
     if (res.status === 200) {
       const data = await res.json();
-
       const content = Buffer.from(data.content, "base64").toString("utf-8");
 
       let keywords = content.replace(/[^a-zA-Z0-9<>{};]/g, " ");
@@ -56,48 +55,52 @@ export async function POST(req: Request) {
       );
 
       if (response.status === 200) {        
-        const data = await response.json();
+        const searchData = await response.json();
                 
-        if (data.total_count > 0) {
-          const OrignalFileName = filepath.split("/").pop();
+        if (searchData.total_count > 0) {
+          const originalFileName = filepath.split("/").pop();
           
-          if(OrignalFileName.localeCompare(data.items[0].name) != 0){
+          // Filter results to only include exact file name matches
+          const matchingItems = searchData.items.filter(
+            (item: any) => item.name === originalFileName
+          );
+
+          if (matchingItems.length === 0) {
             return NextResponse.json({
-              status: 200,
-              match: false,
+              total_count: 0,
+              incomplete_results: false,
+              items: []
             });
           }
           
-          const repoLink = data.items[0].repository.html_url;
-          const fileLink = data.items[0].html_url;
-          const safeUrl = fileLink.replace(/\[/g, '%5B').replace(/\]/g, '%5D');
-         
           return NextResponse.json({
-            status: 200,
-            match: true,
-            fileUrl: safeUrl,
-            fileName: data.items[0].name,
-            repoLink: repoLink,
+            total_count: matchingItems.length,
+            incomplete_results: searchData.incomplete_results,
+            items: matchingItems
           });
         } else {
           return NextResponse.json({
-            status: 200,
-            match: false,
-          }); 
+            total_count: 0,
+            incomplete_results: false,
+            items: []
+          });
         }
       } else {
-        console.log("error while searching for file content");
-        return NextResponse.json({status: 500, message: "error while searching for file content"});
+        return NextResponse.json(
+          { error: "Error while searching for file content" },
+          { status: 500 }
+        );
       }
     } else {
-      console.log("error while fetching file content");
       return NextResponse.json(
-        {status: 500, message: "error while fetching file content"}
-      )
+        { error: "Error while fetching file content" },
+        { status: 500 }
+      );
     }
   } catch (error) {
     return NextResponse.json(
-      {status: 500, message: "catch error while fetching file content"}
-    )
+      { error: "Error while processing request" },
+      { status: 500 }
+    );
   }
 }

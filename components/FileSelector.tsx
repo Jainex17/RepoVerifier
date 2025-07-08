@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { Octokit } from "@octokit/rest";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -28,7 +27,13 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { redirect } from "next/navigation";
 
-const octokit = new Octokit();
+const fetchContents = async (owner: string, repo: string, path: string = '') => {
+  const response = await fetch(`/api/github/contents?owner=${owner}&repo=${repo}&path=${encodeURIComponent(path)}`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch repository contents');
+  }
+  return response.json();
+};
 
 interface FileItem {
   name: string;
@@ -37,11 +42,29 @@ interface FileItem {
   children?: FileItem[];
 }
 
-export interface searchResults {
+interface SearchResults {
+  total_count: number;
+  incomplete_results: boolean;
+  items: Array<{
+    name: string;
+    path: string;
+    html_url: string;
+    repository: {
+      id: number;
+      name: string;
+      full_name: string;
+      html_url: string;
+      owner: {
+        login: string;
+        avatar_url: string;
+      };
+    };
+  }>;
+}
+
+interface FileSearchResults {
   filePath: string;
-  fileUrl: string;
-  filename: string;
-  repoUrl: string;
+  results: SearchResults;
 }
 
 export default function FileSelector({
@@ -56,7 +79,8 @@ export default function FileSelector({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchResultLoading, setSearchResultLoading] = useState(false);
-  const [searchResults, setSearchResults] = useState<searchResults[]>();
+  const [searchResults, setSearchResults] = useState<FileSearchResults[]>([]);
+  const [showResultsModal, setShowResultsModal] = useState(false);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
     new Set()
   );
@@ -72,15 +96,9 @@ export default function FileSelector({
           return;
         }
 
-        const response = await octokit.repos.getContent({
-          owner,
-          repo,
-          path: "",
-        });
-
-        if (Array.isArray(response.data)) {
-          const fileTree = await buildFileTree(response.data, owner, repo);
-
+        const data = await fetchContents(owner, repo);
+        if (Array.isArray(data)) {
+          const fileTree = await buildFileTree(data, owner, repo);
           setFiles(fileTree);
         } else {
           setError("Unable to fetch repository contents");
@@ -119,14 +137,9 @@ export default function FileSelector({
         };
 
         if (item.type === "dir") {
-          const subItems = await octokit.repos.getContent({
-            owner,
-            repo,
-            path: item.path,
-          });
-
-          if (Array.isArray(subItems.data)) {
-            fileItem.children = await buildFileTree(subItems.data, owner, repo);
+          const subItems = await fetchContents(owner, repo, item.path);
+          if (Array.isArray(subItems)) {
+            fileItem.children = await buildFileTree(subItems, owner, repo);
           }
         }
 
@@ -179,23 +192,20 @@ export default function FileSelector({
         key={item.path}
         className={cn(
           "transition-all duration-200",
-          depth === 0 ? "border-b border-zinc-800 last:border-none" : ""
+          depth === 0 ? "border-b border-zinc-900 last:border-none" : ""
         )}
       >
         <div
           className={cn(
-            "flex items-center space-x-2 py-2 px-2 hover:bg-zinc-800/50 rounded-md transition-colors",
+            "flex items-center space-x-2 py-2 px-2 hover:bg-white/10 transition-colors",
             "cursor-pointer select-none",
-            selectedFiles.includes(item.path) && item.type === "file"
-              ? "bg-zinc-800"
-              : ""
           )}
           style={{ marginLeft: `${depth * 16}px` }}
-          onClick={() =>
-            item.type === "dir"
-              ? toggleFolder(item.path)
-              : handleFileSelection(item.path)
-          }
+          onClick={(e) => {
+            if (item.type === "dir") {
+              toggleFolder(item.path);
+            }
+          }}
         >
           {item.type === "dir" ? (
             <>
@@ -223,12 +233,22 @@ export default function FileSelector({
                 <Checkbox
                   id={item.path}
                   checked={selectedFiles.includes(item.path)}
-                  onCheckedChange={() => handleFileSelection(item.path)}
+                  onCheckedChange={(checked) => {
+                    handleFileSelection(item.path);
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
                   className="data-[state=checked]:bg-indigo-600 border-zinc-700"
                 />
                 <FileIcon className="h-4 w-4 text-zinc-400" />
                 <label
                   htmlFor={item.path}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleFileSelection(item.path);
+                  }}
                   className="text-sm font-medium leading-none cursor-pointer text-zinc-300 hover:text-indigo-400 transition-colors"
                 >
                   {item.name}
@@ -255,55 +275,62 @@ export default function FileSelector({
 
   const searchForSimilarCode = async (selectedFiles: string[]) => {
     try {
-    setSearchResultLoading(true);
-    const searchResults: searchResults[] = [];
-    for (const file of selectedFiles) {
-      const response = await fetch("/api/matchfilecontent", {
-        method: "POST",
-        body: JSON.stringify({
-          filepath: file,
-          owner,
-          repo,
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.match) {
-          searchResults.push({
-            filePath: file,
-            fileUrl: data.fileUrl,
-            filename: data.fileName,
-            repoUrl: data.repoLink,
+      setSearchResultLoading(true);
+      const allResults: FileSearchResults[] = [];
+      
+      for (const file of selectedFiles) {
+        try {
+          const response = await fetch("/api/matchfilecontent", {
+            method: "POST",
+            body: JSON.stringify({
+              filepath: file,
+              owner,
+              repo,
+            }),
+            headers: {
+              "Content-Type": "application/json",
+            },
           });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data) {
+              allResults.push({
+                filePath: file,
+                results: data
+              });
+            }
+          } else {
+            toast({
+              description: "API Rate Limit Exceeded",
+              variant: "destructive"
+            });
+            break;
+          }
+        } catch (err) {
+          console.error(`Error scanning file ${file}:`, err);
         }
+      }
+
+      if (allResults.length > 0) {
+        setSearchResults(allResults);
+        setShowResultsModal(true);
       } else {
         toast({
-          description: "API Rate Limit Exceeded",
+          description: "No similar code found in any files",
         });
       }
-    }
-
-    setSearchResults(searchResults);
-    if (searchResults.length > 0) {
-      similarCodeRef.current?.scrollIntoView({
-      behavior: "smooth",
+    } catch (err) {
+      console.error("Error while searching for similar code:", err);
+      toast({
+        description: "Error while searching for similar code",
+        variant: "destructive",
       });
+    } finally {
+      setSearchResultLoading(false);
     }
+  };
 
-  } catch (err) {
-    console.error("Error while searching for similar code:", err);
-    toast({
-      description: "Error while searching for similar code",
-      variant: "destructive",
-    });
-  } finally {
-    setSearchResultLoading(false);
-    }
-  }
   const handleScanAllFiles = async () => {
     if (files.length === 0) {
       return;
@@ -313,9 +340,9 @@ export default function FileSelector({
     setSearchResultLoading(true);
 
     try {
-      const allSearchResults: searchResults[] = [];
       const allFiles = getAllFiles(files);
-      
+      const allResults: FileSearchResults[] = [];
+
       for (const file of allFiles) {
         try {
           const response = await fetch("/api/matchfilecontent", {
@@ -332,29 +359,38 @@ export default function FileSelector({
 
           if (response.ok) {
             const data = await response.json();
-            if (data.match) {
-              allSearchResults.push({
+            if (data && data.total_count > 0) {
+              allResults.push({
                 filePath: file.path,
-                fileUrl: data.fileUrl,
-                filename: data.fileName,
-                repoUrl: data.repoLink,
+                results: data
               });
             }
           } else {
             toast({
               description: "API Rate Limit Exceeded",
-              variant: "destructive",
+              variant: "destructive"
             });
-            break; 
+            break;
           }
         } catch (err) {
           console.error(`Error scanning file ${file.path}:`, err);
         }
       }
-      
-      setSearchResults(allSearchResults);
+
+      if (allResults.length > 0) {
+        setSearchResults(allResults);
+        setShowResultsModal(true);
+      } else {
+        toast({
+          description: "No similar code found in any files",
+        });
+      }
     } catch (err) {
       console.error("Error while scanning all files:", err);
+      toast({
+        description: "Error while scanning files",
+        variant: "destructive",
+      });
     } finally {
       setSearchResultLoading(false);
     }
@@ -376,22 +412,22 @@ export default function FileSelector({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col justify-center items-center h-[70vh] space-y-4 bg-zinc-950">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-        <p className="text-zinc-400">Loading repository contents...</p>
+      <div className="flex flex-col justify-center items-center h-[70vh] space-y-4 bg-black">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+        <p className="text-zinc-300">Loading repository contents...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col justify-center items-center h-[70vh] space-y-4 bg-zinc-950">
+      <div className="flex flex-col justify-center items-center h-[70vh] space-y-4 bg-black">
         <AlertCircle className="h-12 w-12 text-red-500" />
         <p className="text-red-400 font-medium">{error}</p>
         <Button
           variant="outline"
           onClick={() => window.history.back()}
-          className="border-zinc-800 text-zinc-300 hover:bg-zinc-800/50"
+          className="border-zinc-800 text-zinc-300 hover:bg-zinc-900"
         >
           Go Back
         </Button>
@@ -400,12 +436,12 @@ export default function FileSelector({
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl min-h-screen">
-      <Card className="shadow-lg border-zinc-800 bg-zinc-900">
+    <div className="container mx-auto px-4 py-8 max-w-6xl min-h-screen bg-black">
+      <Card className="border-zinc-900 bg-zinc-950">
         <CardHeader className="space-y-4">
           <div className="flex flex-col space-y-2">
-            <CardTitle className="text-2xl font-bold text-zinc-50">
-            RepoVerifier
+            <CardTitle className="text-2xl font-bold text-white">
+              RepoVerifier
             </CardTitle>
             <CardDescription className="text-zinc-400">
               Select unique files to scan for similar code in other repositories.
@@ -417,11 +453,10 @@ export default function FileSelector({
               </span>
             </div>
           </div>
-          
         </CardHeader>
 
         <CardContent>
-          <ScrollArea className="h-[400px] w-full rounded-lg border border-zinc-800 bg-zinc-950/50 p-4">
+          <ScrollArea className="h-[400px] w-full rounded-lg border border-zinc-800 bg-black p-4">
             {files.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-zinc-400">
                 <FolderIcon className="h-12 w-12 mb-2" />
@@ -439,14 +474,14 @@ export default function FileSelector({
           <Button
             variant="outline"
             onClick={() => window.history.back()}
-            className="w-full sm:w-auto border-zinc-800 text-zinc-300 hover:bg-zinc-800/50 hover:text-zinc-50"
+            className="w-full sm:w-auto border-zinc-800 text-zinc-300 hover:bg-zinc-900"
           >
             Back
           </Button>
           <div className="flex-1 flex flex-col sm:flex-row gap-4">
             <Button
               variant="outline"
-              className="w-full border-zinc-800 text-zinc-300 hover:bg-zinc-800/50 hover:text-zinc-50"
+              className="w-full border-zinc-800 text-zinc-300 hover:bg-zinc-900"
               onClick={handleScanAllFiles}
               disabled={searchResultLoading || files.length === 0}
             >
@@ -462,7 +497,7 @@ export default function FileSelector({
             <Button
               onClick={handleSubmit}
               disabled={searchResultLoading || selectedFiles.length === 0}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-zinc-50 disabled:bg-zinc-800 disabled:text-zinc-500"
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white disabled:bg-zinc-800 disabled:text-zinc-500"
             >
               {searchResultLoading ? (
                 <>
@@ -477,33 +512,12 @@ export default function FileSelector({
         </CardFooter>
       </Card>
 
-      <div className="mt-8">
-        {searchResultLoading && (
-          <div className="flex flex-col items-center justify-center py-12 space-y-4">
-            <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-            <p className="text-zinc-400">Searching for similar code...</p>
-          </div>
-        )}
-
-        {!searchResultLoading &&
-          searchResults &&
-          searchResults.length === 0 && (
-            <Card className="bg-zinc-900 border-zinc-800 border-dashed">
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <FileIcon className="h-12 w-12 text-zinc-600 mb-4" />
-                <p className="text-zinc-400 text-center">
-                  No similar code found in other repositories
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-        {searchResults && searchResults.length > 0 && (
-          <div ref={similarCodeRef}>
-            <SimilarCodeFound searchResults={searchResults} />
-          </div>
-        )}
-      </div>
+      {searchResults.length > 0 && showResultsModal && (
+        <SimilarCodeFound
+          searchResults={searchResults}
+          onClose={() => setShowResultsModal(false)}
+        />
+      )}
     </div>
   );
 }

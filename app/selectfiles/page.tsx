@@ -35,7 +35,7 @@ function PageContent() {
   }
 
   return (
-    <div className="flex items-center justify-center w-full">
+    <div className="flex items-center justify-center w-full bg-black overflow-y-auto">
       <FileSelector owner={owner as string} repo={repo as string} />
     </div>
   );

@@ -45,9 +45,9 @@ export default function ProjectInput() {
         const { data } = await octokit.rateLimit.get();
         setRemainingRequests(data.resources.core.remaining);
 
-        if (data.resources.core.remaining < 5) {
+        if (data.resources.core.remaining < 10) {
           toast.warning(
-            "GitHub API rate limit is low. Some features may be limited."
+            "GitHub API rate limit is low. Big projects may not be able to be verified."
           );
         }
       } catch (error) {
